@@ -60,19 +60,16 @@ int main() {
 
 	// stores the total input size
 	input_size = i;
-	printf("input size: %d\n", input_size);
 
 	// defines number of necessary processes
 	num_processes = MAX_PROCESSES;
 	if(input_size < 4) num_processes = input_size;
-	printf("num_processes: %d\n\n", num_processes);
 
 	// creates pipe
 	pipe(pipefd);
 
 	// writes integers in the pipe
 	for(i = 0; i < input_size; i++){
-		printf("colocando %llu no pipe\n", input[i]);
 		write(pipefd[1], &input[i], sizeof(input[i]));
 	}
 	
@@ -108,12 +105,10 @@ int main() {
 
 	// waits for the end of the processes execution
 	for(int k = 0; k < num_processes; k++){
-		printf("esperando processo %d\n", k);
 		waitpid(pid[k], NULL, 0);
 	}
 
 	// print prime count
-	printf("\nprime count: %d\n", (*prime_count));
-	printf("finalizando o programa\n");
+	printf("%d\n", (*prime_count));
 	return 0;
 }
