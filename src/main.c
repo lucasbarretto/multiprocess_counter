@@ -3,11 +3,13 @@
 #include <stdbool.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <signal.h>
 
 #define MAX_PROCESSES 4
 
+// function to detec is integer x is prime
 bool is_prime(int x){
 	int i;
 
@@ -30,17 +32,28 @@ bool is_prime(int x){
 	return true;
 }
 
+// main program
 int main() {
 
-	int input[100];
-	int i, input_size, num_processes, prime_count;
-	char c;
-	pid_t pid[4];
+	unsigned long long int input[100]; // input storage
+	int i; // index variable
+	char c; // auxiliary char variable 
+	int input_size; // stores the size of the input
+	int num_processes; // number of necessary processes
+	pid_t pid[4]; // stores the PID of each process
+	int pipefd[2]; // pipe r/w
+
+	// creates protection and visibility flags
+	int protection = PROT_READ | PROT_WRITE;
+	int visibility = MAP_SHARED | MAP_ANON;
+
+	// creates shared memory area
+	int *prime_count = (int *) mmap(NULL, sizeof(int), protection, visibility, 0, 0);
 
 	// receives a list of integers as input
 	i = 0;
 	while(c != '\n'){
-		scanf("%d", &input[i]);
+		scanf("%llu", &input[i]);
 		c = getchar();
 		i++;
 	}
@@ -49,29 +62,58 @@ int main() {
 	input_size = i;
 	printf("input size: %d\n", input_size);
 
-	// defines the number of necessary processes
-	if(input_size > MAX_PROCESSES) num_processes = MAX_PROCESSES;
-	else num_processes = input_size;
-	printf("number of processes: %d\n", num_processes);
+	// defines number of necessary processes
+	num_processes = MAX_PROCESSES;
+	if(input_size < 4) num_processes = input_size;
+	printf("num_processes: %d\n\n", num_processes);
 
-	// creates processes
+	// creates pipe
+	pipe(pipefd);
+
+	// writes integers in the pipe
+	for(i = 0; i < input_size; i++){
+		printf("colocando %llu no pipe\n", input[i]);
+		write(pipefd[1], &input[i], sizeof(input[i]));
+	}
+	
+	// close pipe write
+	close(pipefd[1]);
+
+	// creates the necessary number of processes
 	for(i = 0; i < num_processes; i++){
+		
 		pid[i] = fork();
 
+		// process function
 		if(pid[i] == 0){
-			printf("estou no processo %d\n", i);
+			unsigned long long int num;
+			
+			// close pipe writing
+			close(pipefd[1]);
+
+			// reads pipe
+			while(read(pipefd[0], &num, sizeof(num)) > 0){
+
+				// if num is prime increase the prime count
+				if(is_prime(num)) (*prime_count)++;
+			}
+
+			// close pipe reading
+			close(pipefd[0]);
+				
+			// exit process
 			exit(0);
 		}
 	}
 
-	printf("estou no processo pai\n");
-
-	for(i = 0; i < input_size; i++){
-		printf("input %d esperando o processo %d\n", i, i % MAX_PROCESSES);
-		waitpid(pid[i % MAX_PROCESSES], NULL, 0);
-		printf("sai do processo %d\n", i % MAX_PROCESSES);
+	// waits for the end of the processes execution
+	for(int k = 0; k < num_processes; k++){
+		printf("esperando processo %d\n", k);
+		waitpid(pid[k], NULL, 0);
 	}
 
-	printf("finalizando o processo pai\n");
+	// print prime count
+	printf("\nprime count: %d\n", (*prime_count));
+	printf("finalizando o programa\n");
 	return 0;
 }
